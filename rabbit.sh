@@ -1,14 +1,26 @@
 #!/bin/bash
 
+# start_or_run () {
+#     docker inspect peril_rabbitmq > /dev/null 2>&1
+
+#     if [ $? -eq 0 ]; then
+#         echo "Starting Peril RabbitMQ container..."
+#         docker start peril_rabbitmq
+#     else
+#         echo "Peril RabbitMQ container not found, creating a new one..."
+#         docker run -d --name peril_rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management
+#     fi
+# }
+
 start_or_run () {
-    docker inspect peril_rabbitmq > /dev/null 2>&1
+    docker inspect rabbitmq_stomp  > /dev/null 2>&1
 
     if [ $? -eq 0 ]; then
         echo "Starting Peril RabbitMQ container..."
-        docker start peril_rabbitmq
+        docker start rabbitmq_stomp 
     else
         echo "Peril RabbitMQ container not found, creating a new one..."
-        docker run -d --name peril_rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3.13-management
+        docker run -d --name rabbitmq-stomp  -p 5672:5672 -p 15672:15672 -p 61613:61613 rabbitmq-stomp
     fi
 }
 
@@ -18,11 +30,11 @@ case "$1" in
         ;;
     stop)
         echo "Stopping Peril RabbitMQ container..."
-        docker stop peril_rabbitmq
+        docker stop rabbitmq_stomp 
         ;;
     logs)
         echo "Fetching logs for Peril RabbitMQ container..."
-        docker logs -f peril_rabbitmq
+        docker logs -f rabbitmq_stomp 
         ;;
     *)
         echo "Usage: $0 {start|stop|logs}"
