@@ -35,22 +35,54 @@ func main() {
 		return
 	}
 
-	_, _, pubsubErr := pubsub.DeclareAndBind(
-		connection,
-		routing.ExchangePerilDirect,
-		routing.PauseKey+"."+username,
-		routing.PauseKey,
-		pubsub.SimpleQueueTransient)
+	// _, _, pubsubErr := pubsub.DeclareAndBind(
+	// 	connection,
+	// 	routing.ExchangePerilDirect,
+	// 	routing.PauseKey+"."+username,
+	// 	routing.PauseKey,
+	// 	pubsub.SimpleQueueTransient)
 
-	if pubsubErr != nil {
-		log.Fatalf("Could not declare and bind: %v", pubsubErr)
-		return
-	}
+	// if pubsubErr != nil {
+	// 	log.Fatalf("Could not declare and bind: %v", pubsubErr)
+	// 	return
+	// }
 
 	state := gamelogic.NewGameState(username)
 
 	if state == nil {
 		log.Fatalf("Could not get a new state of the game")
+		return
+	}
+
+	pausePubSubError := pubsub.SubscribeJSON(
+		connection,
+		routing.ExchangePerilDirect,
+		routing.PauseKey+"."+username,
+		routing.PauseKey,
+		pubsub.SimpleQueueTransient,
+		handlerPause(state))
+
+	if pausePubSubError != nil {
+		log.Fatalf("Could not declare and bind: %v", pausePubSubError)
+		return
+	}
+
+	movePubSubError := pubsub.SubscribeJSON(
+		connection,
+		routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+username,
+		routing.ArmyMovesPrefix+".*",
+		pubsub.SimpleQueueTransient,
+		handlerMove(state))
+
+	if movePubSubError != nil {
+		log.Fatalf("Could not declare and bind: %v", movePubSubError)
+		return
+	}
+
+	newChannel, err := connection.Channel()
+	if err != nil {
+		log.Fatalf("could not create channel: %v", err)
 		return
 	}
 
@@ -74,11 +106,24 @@ func main() {
 
 		case "move":
 			{
-				_, moveError := state.CommandMove(userInput)
+				move, moveError := state.CommandMove(userInput)
 				if moveError != nil {
 					fmt.Println(moveError)
 					continue
 				}
+
+				publishError := pubsub.PublishJSON(
+					newChannel,
+					routing.ExchangePerilTopic,
+					routing.ArmyMovesPrefix+"."+username,
+					move)
+
+				if publishError != nil {
+					fmt.Println(publishError)
+					continue
+				}
+
+				fmt.Println("You have made your move")
 			}
 
 		case "status":
