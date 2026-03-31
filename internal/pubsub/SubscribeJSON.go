@@ -2,29 +2,35 @@ package pubsub
 
 import (
 	"encoding/json"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string, queueType SimpleQueueType, handler func(T)) error {
+type Acktype int
 
-	_, _, pubsubError := DeclareAndBind(conn, exchange, queueName, key, queueType)
+const (
+	Ack Acktype = iota
+	NackRequeue
+	NackDiscard
+)
+
+func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string, queueType SimpleQueueType, handler func(T) Acktype) error {
+
+	newChannel, _, pubsubError := DeclareAndBind(conn, exchange, queueName, key, queueType)
 
 	if pubsubError != nil {
 		return pubsubError
 	}
 
-	newChannel, err := conn.Channel()
+	deliveries, err := newChannel.Consume(queueName, "", false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
 
-	deliveries, err := newChannel.Consume(queueName, "", false, false, false, false, nil)
-	if err != nil {
-		return nil
-	}
-
 	go func() {
+
+		defer newChannel.Close()
 
 		for msg := range deliveries {
 
@@ -33,9 +39,34 @@ func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string
 				continue
 			}
 
-			handler(target)
+			result := handler(target)
 
-			msg.Ack(false)
+			switch result {
+
+			case Ack:
+				{
+					log.Printf("Ack")
+					msg.Ack(false)
+				}
+
+			case NackRequeue:
+				{
+					log.Printf("NackRequeue")
+					msg.Nack(false, true)
+				}
+
+			case NackDiscard:
+				{
+					log.Printf("NackDiscard")
+					msg.Nack(false, false)
+				}
+
+			default:
+				{
+					log.Printf("Unknown return type")
+					return
+				}
+			}
 		}
 	}()
 

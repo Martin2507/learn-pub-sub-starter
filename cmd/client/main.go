@@ -67,22 +67,35 @@ func main() {
 		return
 	}
 
+	newChannel, err := connection.Channel()
+	if err != nil {
+		log.Fatalf("could not create channel: %v", err)
+		return
+	}
+
 	movePubSubError := pubsub.SubscribeJSON(
 		connection,
 		routing.ExchangePerilTopic,
 		routing.ArmyMovesPrefix+"."+username,
 		routing.ArmyMovesPrefix+".*",
 		pubsub.SimpleQueueTransient,
-		handlerMove(state))
+		handlerMove(state, newChannel))
 
 	if movePubSubError != nil {
 		log.Fatalf("Could not declare and bind: %v", movePubSubError)
 		return
 	}
 
-	newChannel, err := connection.Channel()
-	if err != nil {
-		log.Fatalf("could not create channel: %v", err)
+	warPubSubError := pubsub.SubscribeJSON(
+		connection,
+		routing.ExchangePerilTopic,
+		routing.WarRecognitionsPrefix,
+		routing.WarRecognitionsPrefix+".*",
+		pubsub.SimpleQueueDurable,
+		handlerConsumeWarMessages(state))
+
+	if warPubSubError != nil {
+		log.Fatalf("Could not declare and bind: %v", warPubSubError)
 		return
 	}
 
