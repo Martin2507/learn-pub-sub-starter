@@ -92,10 +92,23 @@ func main() {
 		routing.WarRecognitionsPrefix,
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.SimpleQueueDurable,
-		handlerConsumeWarMessages(state))
+		handlerConsumeWarMessages(state, newChannel))
 
 	if warPubSubError != nil {
 		log.Fatalf("Could not declare and bind: %v", warPubSubError)
+		return
+	}
+
+	publishPubSubError := pubsub.SubscribeGob(
+		connection,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.SimpleQueueDurable,
+		handlerLogs())
+
+	if publishPubSubError != nil {
+		log.Fatalf("Could not declare and bind: %v", publishPubSubError)
 		return
 	}
 
